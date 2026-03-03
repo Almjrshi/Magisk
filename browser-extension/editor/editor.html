@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'none';">
+  <title>SnapShield - المحرر</title>
+  <link rel="stylesheet" href="editor.css">
+</head>
+<body>
+
+  <!-- شريط الأدوات -->
+  <div class="toolbar">
+    <div class="toolbar-group">
+      <span class="app-name">🛡️ SnapShield</span>
+      <span class="separator">|</span>
+      <span class="page-title" id="page-title">جاري التحميل...</span>
+    </div>
+
+    <div class="toolbar-group tools-center">
+      <!-- أدوات التحرير -->
+      <button class="tool-btn active" id="tool-select" title="تحديد (V)" data-tool="select">
+        <span>↖</span>
+      </button>
+      <button class="tool-btn" id="tool-crop" title="قص (C)" data-tool="crop">
+        <span>✂</span>
+      </button>
+      <button class="tool-btn" id="tool-draw" title="رسم حر (D)" data-tool="draw">
+        <span>✏</span>
+      </button>
+      <button class="tool-btn" id="tool-arrow" title="سهم (A)" data-tool="arrow">
+        <span>→</span>
+      </button>
+      <button class="tool-btn" id="tool-rect" title="مستطيل (R)" data-tool="rect">
+        <span>▭</span>
+      </button>
+      <button class="tool-btn" id="tool-text" title="نص (T)" data-tool="text">
+        <span>T</span>
+      </button>
+      <button class="tool-btn" id="tool-blur" title="تمويه منطقة (B)" data-tool="blur">
+        <span>⊘</span>
+      </button>
+
+      <div class="separator-v"></div>
+
+      <!-- الألوان -->
+      <div class="color-picker-wrap">
+        <input type="color" id="tool-color" value="#ff3b30" title="اللون">
+        <span class="color-preview" id="color-preview" style="background:#ff3b30"></span>
+      </div>
+
+      <!-- حجم الفرشاة -->
+      <input type="range" id="brush-size" min="1" max="20" value="3" title="حجم الفرشاة">
+      <span id="brush-size-val">3px</span>
+
+      <div class="separator-v"></div>
+
+      <!-- Undo / Redo -->
+      <button class="tool-btn" id="btn-undo" title="تراجع (Ctrl+Z)" disabled>↩</button>
+      <button class="tool-btn" id="btn-redo" title="إعادة (Ctrl+Y)" disabled>↪</button>
+    </div>
+
+    <div class="toolbar-group tools-right">
+      <!-- نسخ للحافظة -->
+      <button class="btn-action" id="btn-copy" title="نسخ للحافظة">📋 نسخ</button>
+
+      <!-- تصدير -->
+      <div class="export-group">
+        <select id="export-format">
+          <option value="png">PNG</option>
+          <option value="jpeg">JPEG</option>
+          <option value="pdf">PDF</option>
+        </select>
+        <button class="btn-export" id="btn-export">💾 تصدير</button>
+      </div>
+
+      <!-- حفظ في السجل -->
+      <button class="btn-action" id="btn-save-history">📌 حفظ في السجل</button>
+    </div>
+  </div>
+
+  <!-- الحاوية الرئيسية -->
+  <div class="editor-container">
+
+    <!-- لوحة المعلومات -->
+    <div class="info-panel" id="info-panel">
+      <div class="info-item"><span class="info-label">الموقع</span><span class="info-val" id="info-url">—</span></div>
+      <div class="info-item"><span class="info-label">التاريخ</span><span class="info-val" id="info-date">—</span></div>
+      <div class="info-item"><span class="info-label">الأبعاد</span><span class="info-val" id="info-size">—</span></div>
+      <div class="info-item"><span class="info-label">وضع التأمين</span>
+        <span class="info-val info-badge" id="info-mask">محمية</span>
+      </div>
+    </div>
+
+    <!-- منطقة الرسم -->
+    <div class="canvas-wrap" id="canvas-wrap">
+      <div class="canvas-container" id="canvas-container">
+        <!-- الصورة الأصلية (خلفية) -->
+        <canvas id="canvas-base"   class="canvas-layer"></canvas>
+        <!-- طبقة الرسم والتعليقات -->
+        <canvas id="canvas-draw"   class="canvas-layer canvas-top"></canvas>
+        <!-- طبقة التفاعل (الماوس) -->
+        <canvas id="canvas-events" class="canvas-layer canvas-top" style="cursor:crosshair"></canvas>
+      </div>
+    </div>
+
+    <!-- لوحة القص -->
+    <div class="crop-panel hidden" id="crop-panel">
+      <div class="crop-controls">
+        <div class="crop-inputs">
+          <label>X: <input type="number" id="crop-x" value="0" min="0"></label>
+          <label>Y: <input type="number" id="crop-y" value="0" min="0"></label>
+          <label>العرض: <input type="number" id="crop-w" value="800" min="1"></label>
+          <label>الارتفاع: <input type="number" id="crop-h" value="600" min="1"></label>
+        </div>
+        <div class="crop-btns">
+          <button class="btn-action" id="btn-apply-crop">✅ تطبيق القص</button>
+          <button class="btn-action btn-cancel" id="btn-cancel-crop">❌ إلغاء</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- حقل إدخال النص -->
+  <div class="text-input-overlay hidden" id="text-input-overlay">
+    <input type="text" id="text-input" placeholder="اكتب النص هنا..." maxlength="200">
+    <div class="text-input-btns">
+      <button id="btn-add-text">إضافة</button>
+      <button id="btn-cancel-text">إلغاء</button>
+    </div>
+  </div>
+
+  <!-- شريط الحالة -->
+  <div class="statusbar" id="statusbar">
+    <span id="status-msg">جاهز</span>
+    <span class="status-coords" id="status-coords"></span>
+    <span class="status-zoom" id="status-zoom">100%</span>
+  </div>
+
+  <script src="../libs/jspdf.umd.min.js"></script>
+  <script src="editor.js"></script>
+</body>
+</html>

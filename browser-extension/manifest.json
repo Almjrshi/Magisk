@@ -1,0 +1,73 @@
+{
+  "manifest_version": 3,
+  "name": "SnapShield - Full Page Capture",
+  "version": "1.0.0",
+  "description": "التقاط كامل للصفحة بأمان تام - معالجة محلية 100%",
+
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "downloads",
+    "debugger",
+    "tabs"
+  ],
+
+  "host_permissions": ["<all_urls>"],
+
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; img-src 'self' data: blob:; connect-src 'none';"
+  },
+
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16":  "icons/icon16.png",
+      "48":  "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "default_title": "SnapShield - التقاط الشاشة"
+  },
+
+  "commands": {
+    "capture-fullpage": {
+      "suggested_key": { "default": "Alt+Shift+F" },
+      "description": "التقاط الصفحة كاملة"
+    },
+    "capture-visible": {
+      "suggested_key": { "default": "Alt+Shift+V" },
+      "description": "التقاط المنطقة المرئية"
+    },
+    "capture-region": {
+      "suggested_key": { "default": "Alt+Shift+X" },
+      "description": "تحديد منطقة"
+    }
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content/content-script.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+
+  "web_accessible_resources": [
+    {
+      "resources": ["editor/editor.html"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+
+  "icons": {
+    "16":  "icons/icon16.png",
+    "48":  "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

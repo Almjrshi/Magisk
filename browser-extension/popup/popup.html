@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none';">
+  <title>SnapShield</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+
+  <!-- الرأس -->
+  <header class="header">
+    <div class="logo">
+      <span class="logo-icon">🛡️</span>
+      <span class="logo-text">SnapShield</span>
+    </div>
+    <button class="btn-icon" id="btn-settings" title="الإعدادات">⚙️</button>
+  </header>
+
+  <!-- القسم الرئيسي -->
+  <main id="view-main">
+
+    <!-- أزرار الالتقاط -->
+    <section class="capture-section">
+      <button class="btn-capture btn-primary" id="btn-fullpage">
+        <span class="btn-icon-lg">📄</span>
+        <div class="btn-info">
+          <span class="btn-label">صفحة كاملة</span>
+          <span class="btn-shortcut">Alt+Shift+F</span>
+        </div>
+      </button>
+
+      <button class="btn-capture" id="btn-visible">
+        <span class="btn-icon-lg">🖥️</span>
+        <div class="btn-info">
+          <span class="btn-label">المنطقة المرئية</span>
+          <span class="btn-shortcut">Alt+Shift+V</span>
+        </div>
+      </button>
+
+      <button class="btn-capture" id="btn-region">
+        <span class="btn-icon-lg">✂️</span>
+        <div class="btn-info">
+          <span class="btn-label">تحديد منطقة</span>
+          <span class="btn-shortcut">Alt+Shift+X</span>
+        </div>
+      </button>
+    </section>
+
+    <!-- خيارات سريعة -->
+    <section class="quick-options">
+      <label class="toggle-row" id="toggle-mask-row">
+        <div class="toggle-info">
+          <span class="toggle-label">🔒 إخفاء البيانات الحساسة</span>
+          <span class="toggle-desc">كلمات المرور، البريد، بطاقات الائتمان</span>
+        </div>
+        <div class="toggle-switch">
+          <input type="checkbox" id="toggle-mask" checked>
+          <span class="slider"></span>
+        </div>
+      </label>
+
+      <div class="format-row">
+        <span class="format-label">📁 تنسيق التصدير</span>
+        <div class="format-btns">
+          <button class="fmt-btn active" data-format="png">PNG</button>
+          <button class="fmt-btn" data-format="jpeg">JPEG</button>
+          <button class="fmt-btn" data-format="pdf">PDF</button>
+        </div>
+      </div>
+
+      <label class="toggle-row">
+        <div class="toggle-info">
+          <span class="toggle-label">🌙 وضع داكن</span>
+          <span class="toggle-desc">التقاط بخلفية داكنة</span>
+        </div>
+        <div class="toggle-switch">
+          <input type="checkbox" id="toggle-dark">
+          <span class="slider"></span>
+        </div>
+      </label>
+
+      <div class="delay-row">
+        <span class="delay-label">⏱️ تأخير الالتقاط</span>
+        <div class="delay-btns">
+          <button class="delay-btn active" data-delay="0">فوري</button>
+          <button class="delay-btn" data-delay="3">3 ث</button>
+          <button class="delay-btn" data-delay="5">5 ث</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- السجل -->
+    <section class="history-section">
+      <div class="history-header">
+        <span class="history-title">📋 السجل الأخير</span>
+        <button class="btn-clear" id="btn-clear-history">مسح الكل</button>
+      </div>
+      <div class="history-list" id="history-list">
+        <div class="history-empty">لا توجد لقطات بعد</div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- قسم الإعدادات -->
+  <section id="view-settings" class="hidden">
+    <div class="settings-header">
+      <button class="btn-back" id="btn-back">← رجوع</button>
+      <span class="settings-title">الإعدادات</span>
+    </div>
+
+    <div class="settings-body">
+      <div class="setting-group">
+        <label class="setting-label">قالب اسم الملف</label>
+        <input type="text" class="setting-input" id="setting-filename"
+               value="snapshield_%date_%time"
+               placeholder="snapshield_%date_%time_%title">
+        <div class="setting-hint">
+          متغيرات: %date, %time, %title, %url, %random
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <label class="setting-label">جودة JPEG</label>
+        <div class="slider-row">
+          <input type="range" id="setting-quality" min="60" max="100" value="95" step="5">
+          <span id="quality-value">95%</span>
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <label class="setting-label">حد السجل</label>
+        <select class="setting-select" id="setting-history-limit">
+          <option value="20">20 لقطة</option>
+          <option value="50" selected>50 لقطة</option>
+          <option value="100">100 لقطة</option>
+        </select>
+      </div>
+
+      <button class="btn-save-settings" id="btn-save-settings">💾 حفظ الإعدادات</button>
+      <button class="btn-danger" id="btn-clear-all">🗑️ حذف جميع البيانات</button>
+    </div>
+  </section>
+
+  <!-- شريط الحالة -->
+  <div class="status-bar" id="status-bar" aria-live="polite"></div>
+
+  <!-- مؤشر التحميل -->
+  <div class="loading-overlay hidden" id="loading">
+    <div class="loading-spinner"></div>
+    <span id="loading-text">جاري الالتقاط...</span>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
