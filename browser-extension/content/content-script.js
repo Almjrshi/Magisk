@@ -31,23 +31,19 @@ function startRegionSelection() {
 
   regionSelector = new RegionSelector();
   regionSelector.start((region) => {
-    // إرسال المنطقة للـ background
+    regionSelector = null;
+    // إرسال المنطقة للـ background — الـ background يفتح المحرر مباشرة
     chrome.runtime.sendMessage({
       action: 'capture-region-result',
-      tabId: null, // يُحدد في الـ background
+      tabId: null, // يُحدد من sender.tab.id في الـ background
       region,
       settings: {}
     }, (result) => {
-      if (result?.success) {
-        chrome.runtime.sendMessage({
-          action: 'open-editor',
-          captureResult: result,
-          mode: 'region'
-        });
+      if (chrome.runtime.lastError) {
+        console.error('[SnapShield] Region capture failed:', chrome.runtime.lastError.message);
       }
+      // المحرر يُفتح من الـ background مباشرة عند النجاح
     });
-
-    regionSelector = null;
   });
 }
 
@@ -208,6 +204,8 @@ class RegionSelector {
   }
 
   _cleanup() {
+    // إزالة listener الـ overlay قبل إزالته من DOM
+    this.overlay?.removeEventListener('mousedown', this._onMouseDown);
     this.overlay?.remove();
     this._hint?.remove();
     window.removeEventListener('mousemove', this._onMouseMove);

@@ -265,6 +265,9 @@ input:checked + .slider::before { transform: translateX(-18px); }
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
 }
+.history-list::-webkit-scrollbar { width: 6px; }
+.history-list::-webkit-scrollbar-track { background: transparent; }
+.history-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
 .history-empty {
   text-align: center;

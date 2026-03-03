@@ -55,13 +55,15 @@ async function loadImage() {
     return;
   }
 
+  // البيانات الوصفية تُقرأ من كائن meta المخزون (بعد الإصلاح الجديد)
+  const storedMeta = capture.meta || {};
   state.meta = {
-    url:   params.get('tabUrl')   || capture.url   || '',
-    title: params.get('tabTitle') || capture.title || 'لقطة شاشة',
-    timestamp: capture.timestamp  || Date.now(),
-    format:    params.get('format')   || 'png',
-    quality:   parseFloat(params.get('quality') || '0.95'),
-    template:  params.get('template') || 'snapshield_%date_%time',
+    url:       storedMeta.url      || capture.url   || '',
+    title:     storedMeta.title    || capture.title || 'لقطة شاشة',
+    timestamp: capture.timestamp   || Date.now(),
+    format:    storedMeta.format   || 'png',
+    quality:   storedMeta.quality  || 0.95,
+    template:  storedMeta.template || 'snapshield_%date_%time',
   };
 
   state.imageData = capture.data;
@@ -110,11 +112,13 @@ function bindEvents() {
     btn.addEventListener('click', () => selectTool(btn.dataset.tool));
   });
 
-  // اللون
-  const colorInput = document.getElementById('tool-color');
+  // اللون — تعيين المعاينة الأولية عبر JS (لتجنب inline style في HTML)
+  const colorInput   = document.getElementById('tool-color');
+  const colorPreview = document.getElementById('color-preview');
+  colorPreview.style.background = state.color; // تطبيق القيمة الأولية
   colorInput.addEventListener('input', () => {
     state.color = colorInput.value;
-    document.getElementById('color-preview').style.background = state.color;
+    colorPreview.style.background = state.color;
   });
 
   // حجم الفرشاة
@@ -339,9 +343,9 @@ function applyBlur(x1, y1, x2, y2) {
   const { x, y, w, h } = normalizeRect(x1, y1, x2, y2);
   if (w < 2 || h < 2) return;
 
-  // قراءة البكسلات من الطبقة الأساسية + طبقة الرسم
-  const merged = getMergedCanvas();
-  const mCtx   = merged.getContext('2d');
+  // قراءة البكسلات من الصورة المدمجة (base + draw)
+  const merged    = getMergedCanvas();
+  const mCtx      = merged.getContext('2d');
   const imageData = mCtx.getImageData(x, y, w, h);
   const data      = imageData.data;
 
@@ -350,7 +354,9 @@ function applyBlur(x1, y1, x2, y2) {
     boxBlurPass(data, w, h);
   }
 
-  ctxDraw.putImageData(imageData, x, y);
+  // نضع النتيجة على canvasBase ونمسح canvasDraw لتجنب التضاعف البصري
+  ctxBase.putImageData(imageData, x, y);
+  ctxDraw.clearRect(x, y, w, h);
 }
 
 function boxBlurPass(data, w, h) {
@@ -359,13 +365,13 @@ function boxBlurPass(data, w, h) {
 
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      let r = 0, g = 0, b = 0, count = 0;
+      let r = 0, g = 0, b = 0, a = 0, count = 0;
       for (let ky = -radius; ky <= radius; ky++) {
         for (let kx = -radius; kx <= radius; kx++) {
           const nx = x + kx, ny = y + ky;
           if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
             const idx = (ny * w + nx) * 4;
-            r += data[idx]; g += data[idx+1]; b += data[idx+2];
+            r += data[idx]; g += data[idx+1]; b += data[idx+2]; a += data[idx+3];
             count++;
           }
         }
@@ -374,7 +380,7 @@ function boxBlurPass(data, w, h) {
       tmp[i]   = r / count;
       tmp[i+1] = g / count;
       tmp[i+2] = b / count;
-      tmp[i+3] = data[i+3];
+      tmp[i+3] = a / count;  // إصلاح: تمويه alpha أيضاً
     }
   }
   data.set(tmp);
@@ -593,7 +599,8 @@ async function saveToHistory() {
 
 // ========== اختصارات لوحة المفاتيح ==========
 function onKeyDown(e) {
-  if (e.target.tagName === 'INPUT') return;
+  // لا تتدخل عند الكتابة في حقول النص
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
   const ctrl = e.ctrlKey || e.metaKey;
 
@@ -602,9 +609,10 @@ function onKeyDown(e) {
   if (ctrl && e.key === 's') { e.preventDefault(); exportImage(); return; }
   if (ctrl && e.key === 'c') { e.preventDefault(); copyToClipboard(); return; }
 
-  // اختصارات الأدوات
+  // اختصارات الأدوات — منع السلوك الافتراضي للمتصفح
   const tools = { v: 'select', c: 'crop', d: 'draw', a: 'arrow', r: 'rect', t: 'text', b: 'blur' };
   if (!ctrl && tools[e.key.toLowerCase()]) {
+    e.preventDefault();
     selectTool(tools[e.key.toLowerCase()]);
   }
 }

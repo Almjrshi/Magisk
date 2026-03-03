@@ -105,35 +105,44 @@ async function capture(mode) {
 
 async function captureRegion() {
   const tab = await getActiveTab();
-  if (!tab) return;
+  if (!tab) { showStatus('❌ لا يوجد تبويب نشط', 'error'); return; }
 
   showStatus('ℹ️ اسحب لتحديد المنطقة المطلوبة');
-  window.close(); // إغلاق الـ popup
 
-  await chrome.scripting.executeScript({
-    target: { tabId: tab.id },
-    func: () => window.postMessage({ type: 'SNAPSHIELD_START_REGION' }, '*')
-  });
+  try {
+    // تنفيذ السكريبت أولاً، ثم إغلاق popup
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: () => window.postMessage({ type: 'SNAPSHIELD_START_REGION' }, '*')
+    });
+  } catch (err) {
+    showStatus('❌ فشل بدء التحديد: ' + err.message, 'error');
+    return;
+  }
+
+  window.close();
 }
 
 // ========== فتح المحرر ==========
 async function openEditor(captureResult, tab, mode) {
-  // حفظ مؤقت
   const tempId = `temp_${Date.now()}`;
-  await chrome.storage.local.set({ [tempId]: captureResult });
-
-  const params = new URLSearchParams({
-    id:       tempId,
-    mode,
-    format:   currentSettings.exportFormat,
-    quality:  currentSettings.jpegQuality,
-    template: currentSettings.filenameTemplate,
-    tabTitle: tab.title || '',
-    tabUrl:   tab.url   || '',
+  // نخزن الـ metadata مع الصورة لتجنب URLs طويلة
+  await chrome.storage.local.set({
+    [tempId]: {
+      ...captureResult,
+      meta: {
+        title:    tab.title || '',
+        url:      tab.url   || '',
+        mode,
+        format:   currentSettings.exportFormat,
+        quality:  currentSettings.jpegQuality,
+        template: currentSettings.filenameTemplate,
+      }
+    }
   });
 
   chrome.tabs.create({
-    url: chrome.runtime.getURL(`editor/editor.html?${params.toString()}`),
+    url: chrome.runtime.getURL(`editor/editor.html?id=${tempId}`),
     active: true
   });
 
@@ -155,14 +164,35 @@ async function renderHistory() {
   items.forEach(item => {
     const el = document.createElement('div');
     el.className = 'history-item';
-    el.innerHTML = `
-      <img class="history-thumb" src="${item.thumbnail || ''}" alt="لقطة">
-      <div class="history-meta">
-        <div class="history-meta-title">${escapeHtml(item.title || 'بدون عنوان')}</div>
-        <div class="history-meta-time">${formatTime(item.timestamp)}</div>
-      </div>
-      <button class="history-del" title="حذف">✕</button>
-    `;
+
+    // بناء العناصر بـ DOM API لتجنب XSS تماماً
+    const thumb = document.createElement('img');
+    thumb.className = 'history-thumb';
+    // thumbnail هو data: URL مُولَّد محلياً — آمن
+    thumb.src = item.thumbnail || '';
+    thumb.alt = 'لقطة';
+
+    const meta = document.createElement('div');
+    meta.className = 'history-meta';
+
+    const title = document.createElement('div');
+    title.className = 'history-meta-title';
+    title.textContent = item.title || 'بدون عنوان';
+
+    const time = document.createElement('div');
+    time.className = 'history-meta-time';
+    time.textContent = formatTime(item.timestamp);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'history-del';
+    delBtn.title = 'حذف';
+    delBtn.textContent = '✕';
+
+    meta.appendChild(title);
+    meta.appendChild(time);
+    el.appendChild(thumb);
+    el.appendChild(meta);
+    el.appendChild(delBtn);
 
     // فتح في المحرر
     el.addEventListener('click', (e) => {

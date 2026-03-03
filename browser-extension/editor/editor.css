@@ -262,6 +262,8 @@ html, body {
   top: 0; left: 0;
 }
 
+#canvas-events { cursor: crosshair; }
+
 /* ======= لوحة القص ======= */
 .crop-panel {
   position: absolute;

@@ -35,7 +35,8 @@ chrome.commands.onCommand.addListener(async (command) => {
 
 // ========== الاستماع للرسائل ==========
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  handleMessage(message, sender, sendResponse);
+  handleMessage(message, sender, sendResponse)
+    .catch(err => sendResponse({ error: err.message }));
   return true; // async
 });
 
@@ -50,9 +51,18 @@ async function handleMessage(message, sender, sendResponse) {
         sendResponse(await captureVisibleArea(message.tabId, message.settings));
         break;
 
-      case 'capture-region-result':
-        sendResponse(await processRegionCapture(message.tabId, message.region, message.settings));
+      case 'capture-region-result': {
+        // استخدم sender.tab.id لأن content script يُرسل tabId: null
+        const regionTabId = message.tabId || sender?.tab?.id;
+        if (!regionTabId) { sendResponse({ error: 'No tab ID available' }); break; }
+        const regionResult = await processRegionCapture(regionTabId, message.region, message.settings);
+        if (regionResult.success) {
+          const regionTab = await chrome.tabs.get(regionTabId).catch(() => null);
+          await openEditor(regionResult, regionTab || { title: '', url: '' }, 'region');
+        }
+        sendResponse({ success: regionResult.success });
         break;
+      }
 
       case 'save-screenshot':
         sendResponse(await saveScreenshot(message.data));
@@ -199,6 +209,8 @@ async function captureVisibleArea(tabId, settings = {}) {
       timestamp: Date.now()
     };
 
+  } catch (err) {
+    throw new Error(`Visible area capture failed: ${err.message}`);
   } finally {
     try { await chrome.debugger.detach(debuggee); } catch (_) {}
   }
@@ -223,7 +235,7 @@ async function processRegionCapture(tabId, region, settings = {}) {
         y:      region.y,
         width:  region.width,
         height: region.height,
-        scale:  window.devicePixelRatio || 2
+        scale:  region.dpr || 2  // إصلاح: لا يوجد window في service worker
       },
       captureBeyondViewport: true
     });
@@ -239,6 +251,8 @@ async function processRegionCapture(tabId, region, settings = {}) {
       timestamp: Date.now()
     };
 
+  } catch (err) {
+    throw new Error(`Region capture failed: ${err.message}`);
   } finally {
     try { await chrome.debugger.detach(debuggee); } catch (_) {}
   }
@@ -295,13 +309,21 @@ async function startRegionSelect(tab) {
 
 // ========== فتح المحرر ==========
 async function openEditor(captureResult, tab, mode) {
-  // حفظ مؤقت في storage
   const tempId = `temp_${Date.now()}`;
-  await chrome.storage.local.set({ [tempId]: captureResult });
+  // نخزن البيانات + metadata معاً لتجنب URLs طويلة
+  await chrome.storage.local.set({
+    [tempId]: {
+      ...captureResult,
+      meta: {
+        title:    tab?.title  || '',
+        url:      tab?.url    || '',
+        mode,
+      }
+    }
+  });
 
-  // فتح صفحة المحرر
   chrome.tabs.create({
-    url: chrome.runtime.getURL(`editor/editor.html?id=${tempId}&mode=${mode}&tabTitle=${encodeURIComponent(tab.title)}&tabUrl=${encodeURIComponent(tab.url)}`),
+    url: chrome.runtime.getURL(`editor/editor.html?id=${tempId}`),
     active: true
   });
 }
@@ -345,12 +367,6 @@ async function clearHistory() {
   return { success: true };
 }
 
-// ========== الإعدادات ==========
-async function getSettings() {
-  const result = await chrome.storage.local.get('settings');
-  return { ...DEFAULT_SETTINGS, ...(result.settings || {}) };
-}
-
 async function saveSettings(settings) {
   await chrome.storage.local.set({ settings });
   return { success: true };
@@ -358,11 +374,26 @@ async function saveSettings(settings) {
 
 // ========== التحميل ==========
 async function downloadFile(dataUrl, filename) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     chrome.downloads.download({ url: dataUrl, filename, saveAs: true }, (downloadId) => {
-      resolve({ success: true, downloadId });
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+      } else {
+        resolve({ success: true, downloadId });
+      }
     });
   });
+}
+
+// ========== الإعدادات ==========
+async function getSettings() {
+  try {
+    const result = await chrome.storage.local.get('settings');
+    return { ...DEFAULT_SETTINGS, ...(result?.settings || {}) };
+  } catch (err) {
+    console.error('[SnapShield] Failed to load settings:', err);
+    return { ...DEFAULT_SETTINGS };
+  }
 }
 
 // ========== سكريبتات تُحقن في الصفحة ==========
