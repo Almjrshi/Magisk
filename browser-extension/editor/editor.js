@@ -560,26 +560,77 @@ async function exportImage() {
 }
 
 async function exportAsPDF(canvas, filename) {
-  if (typeof jspdf === 'undefined' && typeof window.jspdf === 'undefined') {
-    throw new Error('مكتبة jsPDF غير محملة');
+  // محرك PDF مدمج — لا يحتاج أي مكتبة خارجية
+  // يُنشئ PDF/1.4 نظيفاً يحتوي JPEG مضغوطاً بـ DCTDecode
+  const W = canvas.width;
+  const H = canvas.height;
+
+  // ترميز الصورة كـ JPEG ثم تحويلها إلى bytes
+  const jpegB64  = canvas.toDataURL('image/jpeg', 0.92).split(',')[1];
+  const jpegData = Uint8Array.from(atob(jpegB64), c => c.charCodeAt(0));
+
+  const enc = s => new TextEncoder().encode(s);
+
+  // مجمّع الأجزاء وتتبع إزاحات البايت لجدول xref
+  const parts   = [];   // Uint8Array[]
+  const offsets = [];   // byte offset of each object
+  let   pos     = 0;
+
+  function push(bytes) { parts.push(bytes); pos += bytes.length; }
+  function obj(n, str)  { offsets[n] = pos; push(enc(str)); }
+
+  // ── رأس PDF ──────────────────────────────────────────────
+  push(enc('%PDF-1.4\n'));
+
+  // 1 - Catalog
+  obj(1, '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
+
+  // 2 - Pages
+  obj(2, '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n');
+
+  // 3 - Page  (MediaBox: x0 y0 x1 y1 في نظام PT — نستخدم البكسل مباشرةً)
+  obj(3,
+    `3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}]\n` +
+    `   /Contents 4 0 R /Resources << /XObject << /Im1 5 0 R >> >> >>\nendobj\n`
+  );
+
+  // 4 - Content stream: يرسم الصورة بحجم الصفحة كاملاً
+  const cs = `q ${W} 0 0 ${H} 0 0 cm /Im1 Do Q`;
+  obj(4,
+    `4 0 obj\n<< /Length ${cs.length} >>\nstream\n${cs}\nendstream\nendobj\n`
+  );
+
+  // 5 - Image XObject (JPEG raw — DCTDecode)
+  offsets[5] = pos;
+  push(enc(
+    `5 0 obj\n<< /Type /XObject /Subtype /Image\n` +
+    `   /Width ${W} /Height ${H} /ColorSpace /DeviceRGB /BitsPerComponent 8\n` +
+    `   /Filter /DCTDecode /Length ${jpegData.length} >>\nstream\n`
+  ));
+  push(jpegData);
+  push(enc('\nendstream\nendobj\n'));
+
+  // ── جدول الإسناد (xref) ──────────────────────────────────
+  const xrefPos = pos;
+  let xref = 'xref\n0 6\n0000000000 65535 f \n';
+  for (let i = 1; i <= 5; i++) {
+    xref += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`;
   }
+  push(enc(xref));
 
-  const { jsPDF } = window.jspdf || jspdf;
-  const imgData   = canvas.toDataURL('image/jpeg', 0.92);
-  const W         = canvas.width;
-  const H         = canvas.height;
+  // ── ذيل PDF ──────────────────────────────────────────────
+  push(enc(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefPos}\n%%EOF\n`));
 
-  // تحديد اتجاه الصفحة
-  const orientation = W >= H ? 'l' : 'p';
-  const pdf = new jsPDF({
-    orientation,
-    unit: 'px',
-    format: [W, H],
-    hotfixes: ['px_scaling']
-  });
-
-  pdf.addImage(imgData, 'JPEG', 0, 0, W, H);
-  pdf.save(filename);
+  // ── تجميع وتحميل ─────────────────────────────────────────
+  const blob = new Blob(parts, { type: 'application/pdf' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 async function copyToClipboard() {
