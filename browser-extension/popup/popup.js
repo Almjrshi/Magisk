@@ -87,7 +87,8 @@ async function capture(mode) {
     const result = await sendMessage({
       action: mode === 'fullpage' ? 'capture-fullpage' : 'capture-visible',
       tabId: tab.id,
-      settings: currentSettings,
+      // captureDelay: 0 لأن الـ popup انتظر بالفعل — نمنع التأخير المضاعف في الـ background
+      settings: { ...currentSettings, captureDelay: 0 },
     });
 
     if (result?.success) {
@@ -156,7 +157,11 @@ async function renderHistory() {
   const items  = result || [];
 
   if (!items.length) {
-    list.innerHTML = '<div class="history-empty">لا توجد لقطات بعد</div>';
+    list.textContent = '';
+    const empty = document.createElement('div');
+    empty.className = 'history-empty';
+    empty.textContent = 'لا توجد لقطات بعد';
+    list.appendChild(empty);
     return;
   }
 
@@ -233,6 +238,9 @@ async function loadSettings() {
 function applySettingsToUI() {
   // مبدل الإخفاء
   document.getElementById('toggle-mask').checked = currentSettings.maskSensitiveData;
+
+  // الوضع الداكن
+  document.getElementById('toggle-dark').checked = currentSettings.darkMode;
 
   // التنسيق
   document.querySelectorAll('.fmt-btn').forEach(b => {
@@ -361,10 +369,3 @@ function formatTime(timestamp) {
   }
 }
 
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}

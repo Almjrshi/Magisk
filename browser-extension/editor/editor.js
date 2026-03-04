@@ -103,8 +103,10 @@ function updateMeta(w, h) {
   const m = state.meta;
   document.getElementById('page-title').textContent = m.title;
   document.getElementById('info-url').textContent   = m.url || '—';
-  document.getElementById('info-date').textContent  =
-    new Date(m.timestamp).toLocaleString('ar-SA');
+  document.getElementById('info-date').textContent  = (() => {
+    try { return new Date(m.timestamp).toLocaleString('ar-SA'); }
+    catch (_) { return new Date(m.timestamp).toLocaleString('en-US'); }
+  })();
   document.getElementById('info-size').textContent  = `${w} × ${h} px`;
 }
 
@@ -525,6 +527,7 @@ function restoreSnapshot(imageData) {
   canvasEvents.width  = imageData.width;
   canvasEvents.height = imageData.height;
   ctxDraw.clearRect(0, 0, imageData.width, imageData.height);
+  ctxEvt.clearRect(0, 0, imageData.width, imageData.height);
   ctxBase.putImageData(imageData, 0, 0);
 }
 

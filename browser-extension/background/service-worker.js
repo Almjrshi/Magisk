@@ -227,13 +227,16 @@ async function processRegionCapture(tabId, region, settings = {}) {
   const debuggee = { tabId };
   let prepared = false;
 
+  // دمج الإعدادات المُمرَّرة مع الإعدادات المحفوظة — لأن content script يُرسل settings: {}
+  const effectiveSettings = { ...(await getSettings()), ...settings };
+
   try {
     await chrome.debugger.attach(debuggee, '1.3');
 
     await chrome.scripting.executeScript({
       target: { tabId },
       func: preparePageScript,
-      args: [settings.maskSensitiveData ?? true]
+      args: [effectiveSettings.maskSensitiveData ?? true]
     });
     prepared = true;
 
