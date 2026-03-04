@@ -35,8 +35,9 @@ chrome.commands.onCommand.addListener(async (command) => {
 
 // ========== الاستماع للرسائل ==========
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  handleMessage(message, sender, sendResponse)
-    .catch(err => sendResponse({ error: err.message }));
+  // لا نضع .catch هنا لأن handleMessage لديها try/catch داخلي
+  // استدعاء .catch + catch داخلي = خطر استدعاء sendResponse مرتين
+  handleMessage(message, sender, sendResponse);
   return true; // async
 });
 
@@ -54,14 +55,15 @@ async function handleMessage(message, sender, sendResponse) {
       case 'capture-region-result': {
         // استخدم sender.tab.id لأن content script يُرسل tabId: null
         const regionTabId = message.tabId || sender?.tab?.id;
-        if (!regionTabId) { sendResponse({ error: 'No tab ID available' }); break; }
+        // return بدل break لتجنب وصول الكود للـ sendResponse التالية في السطح الأعلى
+        if (!regionTabId) { sendResponse({ error: 'No tab ID available' }); return; }
         const regionResult = await processRegionCapture(regionTabId, message.region, message.settings);
         if (regionResult.success) {
           const regionTab = await chrome.tabs.get(regionTabId).catch(() => null);
           await openEditor(regionResult, regionTab || { title: '', url: '' }, 'region');
         }
         sendResponse({ success: regionResult.success });
-        break;
+        return;
       }
 
       case 'save-screenshot':
@@ -122,13 +124,14 @@ async function captureFullPage(tabId, settings = {}) {
     }
 
     // الحصول على أبعاد الصفحة الكاملة
-    const { contentSize, visualViewport } = await chrome.debugger.sendCommand(
-      debuggee,
-      'Page.getLayoutMetrics'
-    );
+    const layoutMetrics = await chrome.debugger.sendCommand(debuggee, 'Page.getLayoutMetrics');
+    if (!layoutMetrics?.contentSize) {
+      throw new Error('Page.getLayoutMetrics لم تُرجع contentSize');
+    }
+    const { contentSize, visualViewport } = layoutMetrics;
 
-    const width  = Math.ceil(contentSize.width);
-    const height = Math.ceil(contentSize.height);
+    const width  = Math.ceil(contentSize.width  || 800);
+    const height = Math.ceil(contentSize.height || 600);
     const dpr    = visualViewport.clientWidth > 0
       ? Math.round(contentSize.width / visualViewport.clientWidth)
       : 2;
@@ -261,8 +264,14 @@ async function processRegionCapture(tabId, region, settings = {}) {
 // ========== تمرير لتحميل المحتوى الكسول ==========
 async function scrollToLoadLazyContent(debuggee, totalHeight) {
   const viewportHeight = 800;
-  let current = 0;
 
+  // إذا كانت الصفحة أقصر من viewport لا داعي للتمرير
+  if (totalHeight <= viewportHeight) {
+    await sleep(150);
+    return;
+  }
+
+  let current = 0;
   while (current < totalHeight) {
     await chrome.debugger.sendCommand(debuggee, 'Runtime.evaluate', {
       expression: `window.scrollTo(0, ${current})`
@@ -322,7 +331,7 @@ async function openEditor(captureResult, tab, mode) {
     }
   });
 
-  chrome.tabs.create({
+  await chrome.tabs.create({
     url: chrome.runtime.getURL(`editor/editor.html?id=${tempId}`),
     active: true
   });
@@ -344,7 +353,8 @@ async function saveScreenshot(data) {
   };
 
   history.unshift(entry);
-  if (history.length > 50) history.pop();
+  const maxHistory = (await getSettings()).maxHistory || 50;
+  if (history.length > maxHistory) history.pop();
 
   await chrome.storage.local.set({ screenshot_history: history });
   return { success: true, id: entry.id };

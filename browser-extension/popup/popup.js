@@ -348,10 +348,17 @@ function sendMessage(message) {
 
 function formatTime(timestamp) {
   if (!timestamp) return '';
-  return new Date(timestamp).toLocaleString('ar-SA', {
-    month: 'short', day: 'numeric',
-    hour: '2-digit', minute: '2-digit'
-  });
+  try {
+    return new Date(timestamp).toLocaleString('ar-SA', {
+      month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+  } catch (_) {
+    return new Date(timestamp).toLocaleString('en-US', {
+      month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+  }
 }
 
 function escapeHtml(str) {

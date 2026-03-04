@@ -123,8 +123,9 @@ class RegionSelector {
 
     this.overlay.appendChild(this.selection);
     this.overlay.appendChild(this.sizeLabel);
+    // hint داخل overlay لضمان z-index صحيح
+    this.overlay.appendChild(hint);
     document.body.appendChild(this.overlay);
-    document.body.appendChild(hint);
     this._hint = hint;
   }
 
@@ -206,8 +207,8 @@ class RegionSelector {
   _cleanup() {
     // إزالة listener الـ overlay قبل إزالته من DOM
     this.overlay?.removeEventListener('mousedown', this._onMouseDown);
+    // hint الآن داخل overlay — تُحذف معه تلقائياً
     this.overlay?.remove();
-    this._hint?.remove();
     window.removeEventListener('mousemove', this._onMouseMove);
     window.removeEventListener('mouseup',   this._onMouseUp);
     window.removeEventListener('keydown',   this._onKeyDown);

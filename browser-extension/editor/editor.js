@@ -70,6 +70,9 @@ async function loadImage() {
 
   // رسم الصورة على الـ canvas
   const img = new Image();
+  img.onerror = () => {
+    setStatus('❌ فشل تحميل الصورة: بيانات تالفة أو تنسيق غير مدعوم');
+  };
   img.onload = () => {
     const W = img.naturalWidth;
     const H = img.naturalHeight;
@@ -283,17 +286,27 @@ function drawPreview(ctx, x1, y1, x2, y2) {
   ctx.lineWidth   = state.brushSize;
   ctx.setLineDash([5, 3]);
 
-  if (state.tool === 'arrow' || state.tool === 'crop') {
+  if (state.tool === 'arrow') {
+    // السهم: رسم خط
     ctx.beginPath();
     ctx.moveTo(x1, y1);
     ctx.lineTo(x2, y2);
     ctx.stroke();
-  } else if (state.tool === 'rect' || state.tool === 'blur') {
+  } else if (state.tool === 'rect' || state.tool === 'blur' || state.tool === 'crop') {
+    // مستطيل لأدوات rect وblur وcrop
     const { x, y, w, h } = normalizeRect(x1, y1, x2, y2);
     ctx.strokeRect(x, y, w, h);
     if (state.tool === 'blur') {
       ctx.fillStyle = 'rgba(0,0,0,0.2)';
       ctx.fillRect(x, y, w, h);
+    }
+    if (state.tool === 'crop') {
+      // تظليل مناطق الحذف
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(0, 0, canvasEvents.width, y);
+      ctx.fillRect(0, y + h, canvasEvents.width, canvasEvents.height);
+      ctx.fillRect(0, y, x, h);
+      ctx.fillRect(x + w, y, canvasEvents.width, h);
     }
   }
   ctx.restore();
@@ -472,8 +485,8 @@ function saveToUndoStack() {
   state.history.push(ctx.getImageData(0, 0, merged.width, merged.height));
   state.future = []; // مسح المستقبل
 
-  // حد 30 خطوة
-  if (state.history.length > 30) state.history.shift();
+  // حد 15 خطوة (لتوفير الذاكرة — كل خطوة قد تكون عدة ميغابايت)
+  if (state.history.length > 15) state.history.shift();
 
   updateUndoButtons();
 }
@@ -643,7 +656,7 @@ function generateFilename(format) {
   const date     = now.toLocaleDateString('en-CA').replace(/\//g, '-');
   const time     = now.toTimeString().slice(0, 8).replace(/:/g, '-');
   const title    = (state.meta.title || 'capture').replace(/[<>:"/\\|?*]/g, '').slice(0, 40);
-  const url      = (state.meta.url   || '').replace(/https?:\/\//, '').split('/')[0];
+  const url      = (state.meta.url   || '').replace(/https?:\/\//, '').split('/')[0].replace(/[<>:"/\\|?*]/g, '').slice(0, 30);
 
   const name = template
     .replace('%date',   date)
