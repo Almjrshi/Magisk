@@ -584,16 +584,18 @@ async function exportAsPDF(canvas, filename) {
 
 async function copyToClipboard() {
   const merged = getMergedCanvas();
-  merged.toBlob(async (blob) => {
-    try {
-      await navigator.clipboard.write([
-        new ClipboardItem({ 'image/png': blob })
-      ]);
-      setStatus('✅ تم النسخ للحافظة');
-    } catch (err) {
-      setStatus('❌ فشل النسخ: ' + err.message);
-    }
-  }, 'image/png');
+  try {
+    // تمرير Promise مباشرة لـ ClipboardItem — يرتبط بـ user gesture الحالي
+    // ويتجنب مشكلة انتهاء صلاحية user gesture عند استخدام toBlob callback
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        'image/png': new Promise(resolve => merged.toBlob(resolve, 'image/png'))
+      })
+    ]);
+    setStatus('✅ تم النسخ للحافظة');
+  } catch (err) {
+    setStatus('❌ فشل النسخ: ' + err.message);
+  }
 }
 
 async function saveToHistory() {
