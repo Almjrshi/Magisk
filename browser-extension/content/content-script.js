@@ -181,6 +181,7 @@ class RegionSelector {
 
     if (w < 10 || h < 10) {
       this._cleanup();
+      regionSelector = null; // السماح بتحديد منطقة جديدة
       return;
     }
 

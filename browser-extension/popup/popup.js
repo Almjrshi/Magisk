@@ -141,7 +141,7 @@ async function openEditor(captureResult, tab, mode) {
     }
   });
 
-  chrome.tabs.create({
+  await chrome.tabs.create({
     url: chrome.runtime.getURL(`editor/editor.html?id=${tempId}`),
     active: true
   });

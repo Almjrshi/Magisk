@@ -411,6 +411,7 @@ function confirmText() {
   const text    = document.getElementById('text-input').value.trim();
   const overlay = document.getElementById('text-input-overlay');
   overlay.classList.add('hidden');
+  state.drawing = false;
 
   if (!text || !state.pendingText) return;
 
@@ -433,14 +434,23 @@ function confirmText() {
 function cancelText() {
   document.getElementById('text-input-overlay').classList.add('hidden');
   state.pendingText = null;
+  state.drawing = false;
 }
 
 // ========== القص ==========
 function applyCrop() {
-  const x = parseInt(document.getElementById('crop-x').value) || 0;
-  const y = parseInt(document.getElementById('crop-y').value) || 0;
-  const w = parseInt(document.getElementById('crop-w').value) || canvasBase.width;
-  const h = parseInt(document.getElementById('crop-h').value) || canvasBase.height;
+  const maxW = canvasBase.width;
+  const maxH = canvasBase.height;
+  let x = Math.max(0, parseInt(document.getElementById('crop-x').value) || 0);
+  let y = Math.max(0, parseInt(document.getElementById('crop-y').value) || 0);
+  let w = parseInt(document.getElementById('crop-w').value) || maxW;
+  let h = parseInt(document.getElementById('crop-h').value) || maxH;
+
+  // تقييد الحدود لمنع القص خارج حدود الـ canvas
+  x = Math.min(x, maxW - 1);
+  y = Math.min(y, maxH - 1);
+  w = Math.min(w, maxW - x);
+  h = Math.min(h, maxH - y);
 
   if (w < 1 || h < 1) return;
 

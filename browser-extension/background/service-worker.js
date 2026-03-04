@@ -106,6 +106,7 @@ async function handleMessage(message, sender, sendResponse) {
 // ========== CDP - التقاط عبر Chrome DevTools Protocol ==========
 async function captureFullPage(tabId, settings = {}) {
   const debuggee = { tabId };
+  let prepared = false;
 
   try {
     // إرفاق المصحح
@@ -117,6 +118,7 @@ async function captureFullPage(tabId, settings = {}) {
       func: preparePageScript,
       args: [settings.maskSensitiveData ?? true]
     });
+    prepared = true;
 
     // انتظار التأخير إن وُجد
     if (settings.captureDelay > 0) {
@@ -132,7 +134,7 @@ async function captureFullPage(tabId, settings = {}) {
 
     const width  = Math.ceil(contentSize.width  || 800);
     const height = Math.ceil(contentSize.height || 600);
-    const dpr    = visualViewport.clientWidth > 0
+    const dpr    = (visualViewport?.clientWidth > 0)
       ? Math.round(contentSize.width / visualViewport.clientWidth)
       : 2;
 
@@ -159,12 +161,6 @@ async function captureFullPage(tabId, settings = {}) {
       }
     });
 
-    // إعادة الصفحة لحالتها
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      func: restorePageScript
-    });
-
     return {
       success: true,
       data: `data:image/png;base64,${result.data}`,
@@ -176,12 +172,19 @@ async function captureFullPage(tabId, settings = {}) {
   } catch (err) {
     throw new Error(`CDP capture failed: ${err.message}`);
   } finally {
+    // استعادة الصفحة دائماً حتى عند حدوث خطأ
+    if (prepared) {
+      try {
+        await chrome.scripting.executeScript({ target: { tabId }, func: restorePageScript });
+      } catch (_) {}
+    }
     try { await chrome.debugger.detach(debuggee); } catch (_) {}
   }
 }
 
 async function captureVisibleArea(tabId, settings = {}) {
   const debuggee = { tabId };
+  let prepared = false;
 
   try {
     await chrome.debugger.attach(debuggee, '1.3');
@@ -191,6 +194,7 @@ async function captureVisibleArea(tabId, settings = {}) {
       func: preparePageScript,
       args: [settings.maskSensitiveData ?? true]
     });
+    prepared = true;
 
     if (settings.captureDelay > 0) {
       await sleep(settings.captureDelay * 1000);
@@ -199,11 +203,6 @@ async function captureVisibleArea(tabId, settings = {}) {
     const result = await chrome.debugger.sendCommand(debuggee, 'Page.captureScreenshot', {
       format: 'png',
       captureBeyondViewport: false
-    });
-
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      func: restorePageScript
     });
 
     return {
@@ -215,12 +214,18 @@ async function captureVisibleArea(tabId, settings = {}) {
   } catch (err) {
     throw new Error(`Visible area capture failed: ${err.message}`);
   } finally {
+    if (prepared) {
+      try {
+        await chrome.scripting.executeScript({ target: { tabId }, func: restorePageScript });
+      } catch (_) {}
+    }
     try { await chrome.debugger.detach(debuggee); } catch (_) {}
   }
 }
 
 async function processRegionCapture(tabId, region, settings = {}) {
   const debuggee = { tabId };
+  let prepared = false;
 
   try {
     await chrome.debugger.attach(debuggee, '1.3');
@@ -230,6 +235,7 @@ async function processRegionCapture(tabId, region, settings = {}) {
       func: preparePageScript,
       args: [settings.maskSensitiveData ?? true]
     });
+    prepared = true;
 
     const result = await chrome.debugger.sendCommand(debuggee, 'Page.captureScreenshot', {
       format: 'png',
@@ -243,11 +249,6 @@ async function processRegionCapture(tabId, region, settings = {}) {
       captureBeyondViewport: true
     });
 
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      func: restorePageScript
-    });
-
     return {
       success: true,
       data: `data:image/png;base64,${result.data}`,
@@ -257,6 +258,11 @@ async function processRegionCapture(tabId, region, settings = {}) {
   } catch (err) {
     throw new Error(`Region capture failed: ${err.message}`);
   } finally {
+    if (prepared) {
+      try {
+        await chrome.scripting.executeScript({ target: { tabId }, func: restorePageScript });
+      } catch (_) {}
+    }
     try { await chrome.debugger.detach(debuggee); } catch (_) {}
   }
 }
@@ -318,7 +324,8 @@ async function startRegionSelect(tab) {
 
 // ========== فتح المحرر ==========
 async function openEditor(captureResult, tab, mode) {
-  const tempId = `temp_${Date.now()}`;
+  const tempId  = `temp_${Date.now()}`;
+  const settings = await getSettings();
   // نخزن البيانات + metadata معاً لتجنب URLs طويلة
   await chrome.storage.local.set({
     [tempId]: {
@@ -327,6 +334,9 @@ async function openEditor(captureResult, tab, mode) {
         title:    tab?.title  || '',
         url:      tab?.url    || '',
         mode,
+        format:   settings.exportFormat,
+        quality:  settings.jpegQuality,
+        template: settings.filenameTemplate,
       }
     }
   });
