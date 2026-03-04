@@ -481,9 +481,10 @@ function preparePageScript(maskEnabled) {
       apiKey:     /(?:api[_\-]?key|token|secret)[\s:='"]+([A-Za-z0-9_\-]{20,})/gi,
     };
 
-    // إخفاء حقول كلمة المرور
+    // إخفاء حقول كلمة المرور — نحفظ قيمة filter الأصلية لاستعادتها لاحقاً
     document.querySelectorAll('input[type="password"]').forEach(el => {
-      window.__snapshield_backup__.push({ el, prop: '--pw-blur', val: '' });
+      window.__snapshield_backup__.push({ el, prop: 'filter',          val: el.style.getPropertyValue('filter') });
+      window.__snapshield_backup__.push({ el, prop: '-webkit-filter',  val: el.style.getPropertyValue('-webkit-filter') });
       el.style.setProperty('filter', 'blur(8px)', 'important');
       el.style.setProperty('-webkit-filter', 'blur(8px)', 'important');
     });

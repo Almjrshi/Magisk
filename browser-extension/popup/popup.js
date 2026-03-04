@@ -165,7 +165,7 @@ async function renderHistory() {
     return;
   }
 
-  list.innerHTML = '';
+  list.textContent = '';
   items.forEach(item => {
     const el = document.createElement('div');
     el.className = 'history-item';
